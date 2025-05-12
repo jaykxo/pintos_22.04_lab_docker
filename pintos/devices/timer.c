@@ -28,6 +28,7 @@ static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
+static struct list sleep_list;
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
@@ -41,7 +42,8 @@ timer_init (void) {
 	outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
 	outb (0x40, count & 0xff);
 	outb (0x40, count >> 8);
-
+	
+	list_init(&sleep_list);
 	intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
 
