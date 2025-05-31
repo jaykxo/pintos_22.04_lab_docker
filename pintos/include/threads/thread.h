@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -27,6 +28,9 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
+
+#define FD_START 2						/*파일 디스크럽터 시작*/
+#define FD_MAX 64						/*파일 디스크럽터 끝 주소*/
 
 /* A kernel thread or user process.
  *
@@ -90,11 +94,27 @@ struct thread {
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
+	int64_t wakeup_tick;				// 꺠울시간
 	int priority;                       /* Priority. */
-	int64_t wake_up_tick;               /* Tick at which to wake up */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	int original_priority;				/*original priori*/
+	struct lock *wait_on_lock;			/*wating lock */
+	struct list donations;				/*donation list*/
+	struct list_elem d_elem;     		/*donation elem*/
+
+	struct thread *parent;				/*부모 쓰레드*/
+	struct list child_list;				/*자식 리스트*/
+	struct file *fd_table[FD_MAX];         /*fd table*/
+	struct child_info *my_info;
+	struct file *running_file;
+
+	// int child_exit_status;
+
+	// struct semaphore exit_wait;			/*프로세스 대기 세마포어 exec*/
+	// bool is_wait;
+	
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -109,6 +129,15 @@ struct thread {
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
 };
+
+struct child_info {
+  tid_t tid;
+  int exit_status;
+  bool is_waited;
+  struct semaphore exit_sema;
+  struct list_elem elem;
+};
+
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -127,6 +156,10 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
+bool check_global_tick(int64_t);
+
+void wakeup_thread (int64_t);
+
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
@@ -136,6 +169,9 @@ void thread_yield (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void thread_re_sort (void);
+bool cmp_priority(const struct list_elem *, const struct list_elem *, void *);
+
 
 int thread_get_nice (void);
 void thread_set_nice (int);
