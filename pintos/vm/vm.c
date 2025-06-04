@@ -4,6 +4,11 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 
+#include "userprog/process.h"
+#include "threads/thread.h"
+
+struct list frame_table;
+
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
 void
@@ -16,6 +21,8 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+
+	list_init(&frame_table);
 }
 
 /* Get the type of the page. This function is useful if you want to know the
@@ -112,6 +119,16 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+	void *kva = palloc_get_page(PAL_USER);
+	if (kva == NULL)
+	    kva = vm_evict_frame()->kva;
+
+	frame = malloc(sizeof(struct frame));
+	frame->kva = kva;
+	frame->page = NULL;
+
+	list_push_back(&frame_table, &frame->elem);
+	return frame;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -151,8 +168,10 @@ vm_dealloc_page (struct page *page) {
 /* Claim the page that allocate on VA. */
 bool
 vm_claim_page (void *va UNUSED) {
-	struct page *page = NULL;
+	struct page *page = spt_find_page(&thread_current()->spt, va);
 	/* TODO: Fill this function */
+	if (page == NULL)
+	    return false;
 
 	return vm_do_claim_page (page);
 }
@@ -167,6 +186,8 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	if (!install_page(page->va, frame->kva, page->writable))
+	    return false;
 
 	return swap_in (page, frame->kva);
 }
@@ -187,4 +208,10 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+}
+
+/* Insert page table entry to map page's VA to frame's PA. */
+bool
+install_page (void *upage, void *kpage, bool writable) {
+  return pml4_set_page(thread_current()->pml4, upage, kpage, writable);
 }

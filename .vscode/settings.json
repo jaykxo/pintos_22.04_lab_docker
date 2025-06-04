@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "flags.h": "c"
-    }
+        "flags.h": "c",
+        "memory_resource": "c"
+    },
+    "C_Cpp.default.defines": ["VM", "EFILESYS", "USERPROG"]
 }
